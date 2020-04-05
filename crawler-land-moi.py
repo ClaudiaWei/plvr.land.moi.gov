@@ -3,10 +3,7 @@ import numpy as np
 import pandas as pd
 import ssl
 import io
-
-"""1.開發【爬蟲程式】下載【內政部不動產時價登錄網 】中,【103年第1季】~【108年第2
-季】、位於【臺北市/新北市/高雄市】的【不動產買賣】資料,【桃園市/臺中市】
-的【預售屋買賣】資料,下載檔案格式選擇【CSV格式】,請選擇【非本期下載】。"""
+import cn2an
 
 def getData(url, time, fileName):
     request = req.Request(url, headers={
@@ -17,8 +14,13 @@ def getData(url, time, fileName):
         data = response.read().decode("utf-8")  # str type
         sdata = io.StringIO(data)
         df = pd.read_csv(sdata)
+        
+        new_header = df.iloc[0] #grab the first row for the header
+        df = df[1:] #take the data less the header row
+        df.columns = new_header #set the header row as the df header
+
         df["df_name"] = time[0:3] + "_" + time[4] + "_" + fileName[0:2] + fileName[11]
-        df.to_csv(time + fileName + ".csv", index=False, header=False, encoding="utf_8_sig")
+        df.to_csv(time + fileName + ".csv", index=False, encoding="utf_8_sig")
         return df
 
 def generateTime(fromTime, toTime):
@@ -69,20 +71,26 @@ def combineData():
     for time in times:
         for fileName in fileNames:
             pageURL = "https://plvr.land.moi.gov.tw//DownloadSeason?season=" + time + "&fileName=" + fileName + ".csv"
+            print(pageURL)
             dfProcessed = getData(pageURL, time, fileName)
             if dfAll is None:
                 dfAll = dfProcessed
             else:
-                dfAll = dfAll.append(dfProcessed)
-    dfAll.to_csv("dfAll.csv", index=False, header=False, encoding="utf_8_sig")
+                dfAll = dfAll.append(dfProcessed, ignore_index=True)
+    dfAll.to_csv("dfAll.csv", index=False, encoding="utf_8_sig")
     return dfAll
 
-combineData()
+dfAll = combineData()
 
-"""2. 使用【pandas】套件,讀取所有檔名【 X_lvr_land_X 】的資料集,分別建立 dataframe 物
-件,設定以【第二列英文】做為 dataframe 欄位標頭,並新增欄位【df_name】(內容請用
-程式將資料補齊,例如: 106年第1季/新北市/不動產買賣 -> 106_1_F_A、 105年第2季/台中市
-/預售屋買賣-> 105_2_B_B)。"""
+def parseFloor(x):
+    x = x.strip("層")
+    x = cn2an.cn2an(x, "normal")
+    return x
+
+dfAll['total floor number'] = dfAll['total floor number'].map(parseFloor, na_action='ignore')
+dfAll = dfAll[dfAll['main use'].str.contains("住家用", na=False)]
+dfAll= dfAll[dfAll['building state'].str.contains("住宅大樓", na=False)]
+dfAll= dfAll[dfAll['total floor number'] >= 13]
+dfAll.to_csv("filter.csv", index=False, encoding="utf_8_sig")
 
 
-# 3. 操作 dataframe 物件,將所有物件合併成【df_all】。
