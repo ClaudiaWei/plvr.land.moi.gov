@@ -83,15 +83,19 @@ def combineData(fromTime, toTime):
     dfAll.to_csv("dfAll.csv", index=False, encoding="utf_8_sig")
     return dfAll
 
-# 先判斷是否為數值，再去掉 ["total floor number"] 欄位的"層"字，並且將中文轉為數字
+# 先判斷是否為數值，再去掉 ["total floor number"] 欄位的"層"字，並且將中文轉為數字，如都不是則回傳0
 def parseFloor(x):
     try:
         x_int = int(x)
         return x_int
     except ValueError:
-        x = x.strip("層")
-        x = cn2an.cn2an(x, "normal")
-        return x
+        try:
+            x = x.strip("層")
+            x = cn2an.cn2an(x, "normal")
+            return x
+        except:
+            return 0
+        
 
 def generateFilterCsv(dfAll):
     dfAll["total floor number"] = dfAll["total floor number"].map(parseFloor, na_action="ignore")
@@ -128,6 +132,6 @@ def generateCountCsv(dfAll):
     return dfCount
 
 if __name__ == "__main__":
-    dfAll = combineData("103S1","105S2")
+    dfAll = combineData("103S1","108S2")
     dfAllFiltered = generateFilterCsv(dfAll)
     dfCount = generateCountCsv(dfAllFiltered)
